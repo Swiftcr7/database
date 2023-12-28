@@ -141,6 +141,7 @@ class visitor_widget(QMainWindow):
         self.voage_button = QPushButton(self)
         self.voage_button.setGeometry(580, 260, 55, 36)
         self.voage_button.setIcon(QIcon('search.png'))
+        self.voage_button.clicked.connect(self.open_voage_information)
 
         self.direction = QLabel('Популярные направления', self)
         self.direction.setGeometry(400, 315, 200, 30)
@@ -191,6 +192,16 @@ class visitor_widget(QMainWindow):
                 self.label1.mousePressEvent = lambda checked, btn_number=i + 1: self.chpo(btn_number)
                 self.city_from_array.append(self.label1)
                 self.label1.hide()
+
+    def open_voage_information(self):
+        self.cursor.execute("SELECT DISTINCT vg.number_voage FROM schedule_train.voage vg")
+        c = self.cursor.fetchall()
+        voage1 = [c[i][0] for i in range(len(c))]
+        if self.voage_input.text() in voage1:
+            self.voage_window = voage_widget(self.voage_input.text())
+            self.schedule_window.show()
+        else:
+            self.auth_error()
 
 
     def open_schedule_railway_station(self):
@@ -253,18 +264,6 @@ class visitor_widget(QMainWindow):
                 = '{self.city.text()}' AND sc.arrival_station_id = rs2.railway_station_id")
         city_in = self.cursor.fetchall()
         print(city_in)
-        # if len(city_in) == len(self.city_in_array):
-        #     for i in range(len(city_in)):
-        #         self.city_in_array[i].clear()
-        #         self.city_in_array[i].setText(f"В {city_in[i][0]}")
-        #         if i > 4:
-        #             break
-        # elif len(city_in) > len(self.city_in_array):
-        #     for i in range(len(city_in)):
-        #         self.city_in_array[i].clear()
-        #         self.city_in_array[i].setText(f"В {city_in[i][0]}")
-        #         if i > 4:
-        #             break
         for i in range(5):
             if len(city_in) >= i + 1:
                 print(1)
@@ -360,12 +359,12 @@ class shedule_widget(QMainWindow):
             item.setToolTip(f'Информация о перевозчике {carrier}\nINN: {car[0][0]}\nФИО директора: {car[0][1]}\nЮридический адресс: {car[0][2]}')
             self.tableWidget.item(i, 0)
             self.cursor.execute(f"SELECT tr.name_train, tr.hours_in_operation, man.manufacturer_name,\
-            (cm.compartment_wagon_number * wg1.number_seats) , (cm.reserved_seat_number * wg.number_seats) \
-            FROM schedule_train.train tr, schedule_train.manufacturer man, \
-            schedule_train.composition_wagons cm, schedule_train.wagon wg, schedule_train.voage vg, schedule_train.wagon wg1\
-            WHERE tr.number_train = '2056' AND man.manufacturer_id = tr.manufacturer_id\
-            AND vg.number_voage = 'М-777-Т' AND vg.composition_wagons_id = cm.composition_wagons_id AND\
-            cm.composition_wagons_type_id = wg1.wagon_id AND cm.reserved_seat_type_id = wg.wagon_id")
+                            (cm.compartment_wagon_number * wg1.number_seats) , (cm.reserved_seat_number * wg.number_seats)\
+                            FROM schedule_train.train tr, schedule_train.manufacturer man,\
+                            schedule_train.composition_wagons cm, schedule_train.wagon wg, schedule_train.voage vg, schedule_train.wagon wg1\
+                            WHERE tr.train_id = vg.train_id AND man.manufacturer_id = tr.manufacturer_id\
+                            AND vg.number_voage = '{voage}' AND vg.composition_wagons_id = cm.composition_wagons_id AND\
+                            cm.composition_wagons_type_id = wg1.wagon_id AND cm.reserved_seat_type_id = wg.wagon_id ")
             tr = self.cursor.fetchall()
             item2 = self.tableWidget.item(i, 0)
             item2.setToolTip(f"Название поезда {tr[0][0]}\nЧасав в эксплуатации {tr[0][1]}\nПроизводитель {tr[0][2]}\nКоличе"
@@ -387,6 +386,8 @@ class shedule_widget(QMainWindow):
 class shedule_railway_station_widget(QMainWindow):
     def __init__(self, name_railway_station, city):
         super().__init__()
+        self.n_railway_station = name_railway_station
+        self.cit = city
         self.setWindowTitle('Расписание')
         self.setFixedSize(QSize(700, 600))
         config_file = 'config.ini'
@@ -400,7 +401,7 @@ class shedule_railway_station_widget(QMainWindow):
         self.depart_button.setCheckable(True)
         self.depart_button.setChecked(True)
         self.cursor.execute(f"SELECT rs.name_railway_station, rs1.name_railway_station, sc.departure_date, sc.departure_time, vg.number_voage,\
-        sc.arrival_date, sc.arrival_time, cr.name_carrier, tr.name_train FROM schedule_train.railway_station rs, schedule_train.railway_station rs1,\
+        sc.arrival_date, sc.arrival_time, cr.name_carrier, tr.name_train, rs.city, rs1.city FROM schedule_train.railway_station rs, schedule_train.railway_station rs1,\
         schedule_train.schedule sc, schedule_train.carrier cr, schedule_train.train tr, schedule_train.voage vg WHERE sc.departure_station_id = rs.railway_station_id AND sc.arrival_station_id = rs1.railway_station_id\
         AND rs.name_railway_station = '{name_railway_station}' AND sc.voage_id = vg.voage_id AND vg.carrier_id = cr.carrier_id AND vg.train_id = tr.train_id ")
         chpo = self.cursor.fetchall()
@@ -410,16 +411,14 @@ class shedule_railway_station_widget(QMainWindow):
         print(str(chpo[0][2]) + ", " + str(chpo[0][3]))
         sc = []
         for i in chpo:
-            f = (i[8],) + (i[7],) + (i[4],) + (i[0],) + (i[1],) + (
+            f = (i[8],) + (i[7],) + (i[4],) + (i[9] + "," + i[0],) + (i[10] + "," + i[1],) + (
             str(i[2]) + ", " + str(i[3]),) + (str(i[5]) + ", " + str(i[6]),)
             sc.append(f)
         print(sc)
 
-        self.label = QLabel(f"Расписание поездов из города {city} с вокзала {name_railway_station}", self)
-        self.label.setFont(QFont("Arial", 14, weight=QFont.Weight.Bold))
-        self.label.setGeometry(100, 140, 600, 30)
+
         self.tableWidget = QTableWidget(self)
-        self.tableWidget.setGeometry(0, 200, 700, 520)
+        self.tableWidget.setGeometry(0, 150, 700, 520)
 
         self.tableWidget.setColumnCount(7)
         self.tableWidget.setHorizontalHeaderLabels(
@@ -464,8 +463,58 @@ class shedule_railway_station_widget(QMainWindow):
         self.arrive_button = QPushButton("Прибывают", self)
         self.arrive_button.setGeometry(348, 100, 170, 30)
         self.arrive_button.setCheckable(True)
+        self.cursor.execute(f"SELECT rs.name_railway_station, rs1.name_railway_station, sc.departure_date, sc.departure_time, vg.number_voage,\
+        sc.arrival_date, sc.arrival_time, cr.name_carrier, tr.name_train, rs.city, rs1.city FROM schedule_train.railway_station rs, schedule_train.railway_station rs1,\
+        schedule_train.schedule sc, schedule_train.carrier cr, schedule_train.train tr, schedule_train.voage vg WHERE sc.departure_station_id = rs.railway_station_id AND sc.arrival_station_id = rs1.railway_station_id\
+        AND rs1.name_railway_station = '{name_railway_station}' AND sc.voage_id = vg.voage_id AND vg.carrier_id = cr.carrier_id AND vg.train_id = tr.train_id ")
+        self.tableWidget1 = QTableWidget(self)
+        self.tableWidget1.setGeometry(0, 150, 700, 520)
+        chpo1 = self.cursor.fetchall()
+        print(chpo1)
+        if len(chpo1) == 0:
+            return
+        print(str(chpo1[0][2]) + ", " + str(chpo1[0][3]))
+        sc1 = []
+        for i in chpo1:
+            f = (i[8],) + (i[7],) + (i[4],) + (i[9] + ',' + i[0],) + (i[10] + ',' + i[1],) + (
+                str(i[2]) + ", " + str(i[3]),) + (str(i[5]) + ", " + str(i[6]),)
+            sc1.append(f)
+        print(sc1)
+        self.tableWidget1.setColumnCount(7)
+        self.tableWidget1.setHorizontalHeaderLabels(
+            ['Поезд', 'Перевозчик', 'Номер рейса', 'Откуда', 'Куда', 'Время отправления', 'Время прибытия'])
+        self.tableWidget1.setRowCount(len(sc1))
+        for i, (train, carrier, voage, from_, in_, date_from, date_in) in enumerate(sc1):
+            self.tableWidget1.setItem(i, 0, QTableWidgetItem(train))
+            self.tableWidget1.setItem(i, 1, QTableWidgetItem(carrier))
+            self.tableWidget1.setItem(i, 3, QTableWidgetItem(from_))
+            self.tableWidget1.setItem(i, 4, QTableWidgetItem(in_))
+            self.tableWidget1.setItem(i, 5, QTableWidgetItem(date_from))
+            self.tableWidget1.setItem(i, 6, QTableWidgetItem(date_in))
+            self.tableWidget1.setItem(i, 2, QTableWidgetItem(voage))
+            print(carrier)
+            self.cursor.execute(f"SELECT cr.inn, cr.director, cr.legal_address FROM schedule_train.carrier cr \
+                            WHERE cr.name_carrier = '{carrier}'")
+            car = self.cursor.fetchall()
+            item = self.tableWidget1.item(i, 1)
+            item.setToolTip(
+                f'Информация о перевозчике {carrier}\nINN: {car[0][0]}\nФИО директора: {car[0][1]}\nЮридический адресс: {car[0][2]}')
+            self.tableWidget1.item(i, 0)
+            self.cursor.execute(f"SELECT tr.name_train, tr.hours_in_operation, man.manufacturer_name,\
+                            (cm.compartment_wagon_number * wg1.number_seats) , (cm.reserved_seat_number * wg.number_seats)\
+                            FROM schedule_train.train tr, schedule_train.manufacturer man,\
+                            schedule_train.composition_wagons cm, schedule_train.wagon wg, schedule_train.voage vg, schedule_train.wagon wg1\
+                            WHERE tr.train_id = vg.train_id AND man.manufacturer_id = tr.manufacturer_id\
+                            AND vg.number_voage = '{voage}' AND vg.composition_wagons_id = cm.composition_wagons_id AND\
+                            cm.composition_wagons_type_id = wg1.wagon_id AND cm.reserved_seat_type_id = wg.wagon_id ")
+            tr = self.cursor.fetchall()
+            item2 = self.tableWidget1.item(i, 0)
+            item2.setToolTip(
+                f"Название поезда {tr[0][0]}\nЧасав в эксплуатации {tr[0][1]}\nПроизводитель {tr[0][2]}\nКоличе"
+                f"ство мест купе {tr[0][3]}\nКоличество мест плацкарт {tr[0][4]}")
+            self.tableWidget1.item(i, 0)
 
-
+        self.tableWidget1.hide()
         self.arrive_button.clicked.connect(self.schedule_arrive)
 
 
@@ -474,14 +523,19 @@ class shedule_railway_station_widget(QMainWindow):
     def schedule_depart(self):
         self.depart_button.setChecked(True)
         self.arrive_button.setChecked(False)
+        self.tableWidget.show()
+        self.tableWidget1.hide()
+        self.label.setText(f"Расписание поездов из города {self.cit}\n   на вокзале {self.n_railway_station}")
 
-        print("fklkf")
 
     def schedule_arrive(self):
         self.depart_button.setChecked(False)
         self.arrive_button.setChecked(True)
+        self.tableWidget1.show()
+        self.tableWidget.hide()
+        self.label.setText(f"Расписание поездов в город {self.cit} \n   на вокзале {self.n_railway_station}")
 
-        print("fmc")
+
 
 
 
@@ -495,6 +549,15 @@ class shedule_railway_station_widget(QMainWindow):
                                 port=config.get("databaseN", "port"),
                                 database=config.get("databaseN", "database"))
         self.cursor = conn.cursor()
+
+class voage_widget(QMainWindow):
+    def __init__(self, name_voage):
+        super().__init__()
+        super().__init__()
+        self.setWindowTitle('Рейс')
+        self.setFixedSize(QSize(700, 600))
+        config_file = 'config.ini'
+
 def main():
     app = QApplication(sys.argv)
     window = visitor_widget()
