@@ -1,5 +1,6 @@
 import sys
 import configparser
+from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QLineEdit, QLabel, QMessageBox, QDialog
 from visitor import visitor_widget
@@ -40,7 +41,8 @@ class MainWindow(QDialog):
         self.login_input.setGeometry(160, 150, 100, 30)
         self.login_input.hide()
 
-        self.show_password_btn = QPushButton('.', self)
+        self.show_password_btn = QPushButton(self)
+        self.show_password_btn.setIcon(QIcon("castle.png"))
         self.show_password_btn.clicked.connect(self.toggle_password_echo)
         self.show_password_btn.setGeometry(260, 200, 32, 32)
         self.show_password_btn.hide()
